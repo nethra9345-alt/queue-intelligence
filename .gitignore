@@ -1,0 +1,11 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+uploads/
+output/
+
+models/yolov8n.pt
+
+.vscode/

@@ -1,49 +1,105 @@
 import cv2
+import json
+import time
 from ultralytics import YOLO
 from queue_logic import QueueMonitor
 
-# Load YOLO model
+# Load model
 model = YOLO("models/best.pt")
 
-# Initialize Queue Monitor
+# Queue monitor
 queue_monitor = QueueMonitor()
 
-# Open video
-cap = cv2.VideoCapture("uploads/queue_video.mp4")
+def generate_frames():
 
-if not cap.isOpened():
-    print("Error opening video")
-    exit()
+    cap = cv2.VideoCapture("uploads/queue_video.mp4")
 
-while True:
+    if not cap.isOpened():
+        print("Error opening video")
+        return
 
-    ret, frame = cap.read()
+    prev_time = time.time()
+    start_time = time.time()
 
-    if not ret:
-        break
+    while True:
 
-    # YOLO + ByteTrack
-    results = model.track(
-        frame,
-        persist=True,
-        tracker="bytetrack.yaml",
-        classes=[0],
-        imgsz=1280,
-        conf=0.25,
-        iou=0.6,
-        verbose=False
-    )
+        ret, frame = cap.read()
 
-    # Process Queue Logic
-    output_frame, data = queue_monitor.process(
-    frame,
-    results
-)
+        if not ret:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            continue
 
-    cv2.imshow("Queue Intelligence", output_frame)
+        results = model.track(
+            frame,
+            persist=True,
+            tracker="bytetrack.yaml",
+            classes=[0],
+            imgsz=1280,
+            conf=0.25,
+            iou=0.6,
+            verbose=False
+        )
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+        confidence = 0
 
-cap.release()
-cv2.destroyAllWindows()
+        if (
+            results
+            and results[0].boxes is not None
+            and results[0].boxes.conf is not None
+        ):
+
+            confs = results[0].boxes.conf.cpu().numpy()
+
+            if len(confs) > 0:
+
+                confidence = float(confs.mean() * 100)
+
+        output_frame, data = queue_monitor.process(
+            frame,
+            results
+        )
+
+        # -------------------------
+        # Detection Confidence
+        # -------------------------
+        data["confidence"] = round(confidence, 1)
+
+        # -------------------------
+        # Live FPS
+        # -------------------------
+        current = time.time()
+        fps = 1 / (current - prev_time)
+        prev_time = current
+
+        data["fps"] = round(fps, 1)
+
+        # -------------------------
+        # Throughput
+        # -------------------------
+        elapsed = (current - start_time) / 60
+
+        if elapsed > 0:
+            throughput = queue_monitor.people_served / elapsed
+        else:
+            throughput = 0
+
+        data["throughput"] = round(throughput, 2)
+
+        # -------------------------
+        # Save Final JSON
+        # -------------------------
+        with open("output/queue_data.json", "w") as file:
+            json.dump(data, file, indent=4)
+
+        ret, buffer = cv2.imencode(".jpg", output_frame)
+
+        frame = buffer.tobytes()
+
+        yield (
+            b'--frame\r\n'
+            b'Content-Type: image/jpeg\r\n\r\n' +
+            frame +
+            b'\r\n'
+        )
+
+    cap.release()

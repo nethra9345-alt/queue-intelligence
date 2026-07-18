@@ -30,6 +30,8 @@ class QueueMonitor:
         queue_count = 0
         annotated = frame.copy()
         current_frame_ids = set()
+        current_waits = {}
+        longest_wait_ids = []
 
         # -----------------------------
         # Draw Queue Polygon
@@ -95,13 +97,22 @@ class QueueMonitor:
                     queue_count += 1
 
                     wait = int(time.time() - self.entry_times[track_id])
+                    current_waits[track_id] = wait
 
                     # Bounding Box
+                    if track_id in longest_wait_ids:
+
+                        color = (0, 0, 255)      # Red
+
+                    else:
+
+                        color = (0, 255, 0)      # Green
+
                     cv2.rectangle(
                         annotated,
                         (xmin, ymin),
                         (xmax, ymax),
-                        (0, 255, 0),
+                        color,
                         2
                     )
 
@@ -112,7 +123,7 @@ class QueueMonitor:
                         (xmin, ymin - 10),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.6,
-                        (0, 255, 0),
+                        color,
                         2
                     )
 
@@ -123,9 +134,33 @@ class QueueMonitor:
                         (xmin, ymax + 20),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.5,
-                        (0, 255, 255),
+                        color,
                         2
                     )
+
+        if current_waits:
+
+            avg_wait = sum(current_waits.values()) / len(current_waits)
+
+            longest_wait = max(current_waits.values())
+
+            longest_wait_ids = [
+
+                pid
+
+                for pid, wait in current_waits.items()
+
+                if wait == longest_wait
+
+            ]
+
+        else:
+
+            avg_wait = 0
+
+            longest_wait = 0
+
+            longest_wait_ids = []
 
         # -----------------------------
         # Detect Exits (Grace Period)
@@ -160,14 +195,6 @@ class QueueMonitor:
         self.current_ids = current_frame_ids
 
         # -----------------------------
-        # Average Wait
-        # -----------------------------
-        avg_wait = 0
-
-        if self.people_served > 0:
-            avg_wait = self.total_wait / self.people_served
-
-        # -----------------------------
         # Queue Status
         # -----------------------------
         if queue_count <= 5:
@@ -195,14 +222,12 @@ class QueueMonitor:
             "queue_count": queue_count,
             "people_served": self.people_served,
             "average_wait": round(avg_wait, 1),
+            "longest_wait": round(longest_wait, 1),
+            "longest_wait_ids": longest_wait_ids,
             "status": status,
             "recommendation": recommendation
 
         }
-
-        with open("output/queue_data.json", "w") as file:
-
-            json.dump(queue_data, file, indent=4)
 
         # -----------------------------
         # Dashboard Text

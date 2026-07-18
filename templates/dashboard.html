@@ -1,0 +1,328 @@
+!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Queue Analytics Platform</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
+<!-- Bootstrap (layout/grid + table utilities only) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+
+<!-- App CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<!-- Ambient scan-grid backdrop (signature motif, echoes CV overlay) -->
+<div class="scan-grid" aria-hidden="true"></div>
+<div class="scan-line" aria-hidden="true"></div>
+
+<div class="dash-shell">
+
+  <!-- ============ HEADER ============ -->
+  <header class="dash-header reveal">
+    <div class="dash-header__title-group">
+      <h1 class="dash-title">
+        <span class="dash-title__icon">🤖</span>
+        Smart Queue Analytics Platform
+      </h1>
+      <p class="dash-subtitle">Real-Time Queue Monitoring &amp; Wait Time Analytics using YOLOv8 + ByteTrack</p>
+    </div>
+
+    <div class="dash-header__meta">
+      <div class="live-pill">
+        <span class="live-pill__ring"></span>
+        <span class="live-pill__dot" id="liveDot"></span>
+        <span class="live-pill__label">LIVE</span>
+      </div>
+      <div class="clock-pill">
+        <i class="bi bi-clock-history"></i>
+        <span id="liveClock">--:--:--</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ KPI SECTION ============ -->
+  <section class="kpi-grid reveal">
+
+    <article class="kpi-card kpi-card--blue">
+      <div class="kpi-card__corner kpi-card__corner--tl"></div>
+      <div class="kpi-card__corner kpi-card__corner--br"></div>
+      <div class="kpi-card__icon"><i class="bi bi-people-fill"></i></div>
+      <p class="kpi-card__label">Queue Length</p>
+      <p id="queueCount" class="kpi-card__value counter" data-target="{{ queue_count }}">{{ queue_count }}</p>
+      <p class="kpi-card__unit">people in line</p>
+    </article>
+
+    <article class="kpi-card kpi-card--green">
+      <div class="kpi-card__corner kpi-card__corner--tl"></div>
+      <div class="kpi-card__corner kpi-card__corner--br"></div>
+      <div class="kpi-card__icon"><i class="bi bi-hourglass-split"></i></div>
+      <p class="kpi-card__label">Estimated Wait</p>
+      <p id="waitTime" class="kpi-card__value counter" data-target="{{ wait_time }}">{{ wait_time }}</p>
+      <p class="kpi-card__unit">minutes</p>
+    </article>
+
+    <article class="kpi-card kpi-card--risk">
+      <div class="kpi-card__corner kpi-card__corner--tl"></div>
+      <div class="kpi-card__corner kpi-card__corner--br"></div>
+      <div class="kpi-card__icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+      <p class="kpi-card__label">Congestion Risk</p>
+      <p class="kpi-card__value kpi-card__value--text risk-badge" id="risk" data-risk="{{ risk }}">{{ risk }}</p>
+      <p class="kpi-card__unit">live assessment</p>
+    </article>
+
+    <article class="kpi-card kpi-card--purple">
+      <div class="kpi-card__corner kpi-card__corner--tl"></div>
+      <div class="kpi-card__corner kpi-card__corner--br"></div>
+      <div class="kpi-card__icon"><i class="bi bi-check2-circle"></i></div>
+      <p class="kpi-card__label">People Served</p>
+      <p id="peopleServed" class="kpi-card__value counter" data-target="{{ people_served }}">{{ people_served }}</p>
+      <p class="kpi-card__unit">today</p>
+    </article>
+
+    <article class="kpi-card kpi-card--yellow">
+      <div class="kpi-card__corner kpi-card__corner--tl"></div>
+      <div class="kpi-card__corner kpi-card__corner--br"></div>
+      <div class="kpi-card__icon"><i class="bi bi-speedometer2"></i></div>
+      <p class="kpi-card__label">FPS</p>
+      <p class="kpi-card__value counter" data-target="29">29</p>
+      <p class="kpi-card__unit">frames / sec</p>
+    </article>
+
+    <article class="kpi-card kpi-card--green2">
+      <div class="kpi-card__corner kpi-card__corner--tl"></div>
+      <div class="kpi-card__corner kpi-card__corner--br"></div>
+      <div class="kpi-card__icon"><i class="bi bi-bullseye"></i></div>
+      <div class="metric-card">
+          <h3 id="confidence">{{ confidence }}%</h3>
+          <p>Detection Confidence</p>
+      </div>
+    </article>
+
+  </section>
+
+  <section class="summary-card-row reveal">
+    <div class="metric-card longest-card">
+
+        <div class="metric-icon longest-icon">
+            <i class="fas fa-user-clock"></i>
+        </div>
+
+        <div class="metric-title">
+            LONGEST WAIT
+        </div>
+
+        <div class="metric-value" id="longest_wait">
+            0 s
+        </div>
+
+        <div class="metric-subtitle" id="longest_wait_id">
+            IDs : -
+        </div>
+
+    </div>
+  </section>
+
+  <!-- ============ MAIN SECTION ============ -->
+  <section class="main-grid reveal">
+
+    <!-- Live Video -->
+    <article class="panel video-panel">
+      <div class="panel__header">
+        <h2 class="panel__title"><i class="bi bi-camera-video-fill"></i> Live Queue Monitoring</h2>
+        <span class="chip chip--rec">
+          <i class="bi bi-record-circle-fill"></i> REC
+        </span>
+      </div>
+
+      <div class="video-panel__frame">
+        <span class="frame-bracket frame-bracket--tl"></span>
+        <span class="frame-bracket frame-bracket--tr"></span>
+        <span class="frame-bracket frame-bracket--bl"></span>
+        <span class="frame-bracket frame-bracket--br"></span>
+
+        <img
+          src="{{ url_for('video_feed') }}"
+          class="video-panel__video"
+          style="width:100%; border-radius:12px;"
+        >
+      </div>
+    </article>
+
+    <!-- AI Status -->
+    <article class="panel status-panel">
+      <div class="panel__header">
+        <h2 class="panel__title"><i class="bi bi-cpu-fill"></i> AI Status</h2>
+      </div>
+
+      <ul class="status-list">
+        <li class="status-row">
+          <span class="status-row__label"><span class="status-dot status-dot--on"></span> YOLOv8</span>
+          <span class="status-badge status-badge--on">Loaded</span>
+        </li>
+        <li class="status-row">
+          <span class="status-row__label"><span class="status-dot status-dot--on"></span> ByteTrack</span>
+          <span class="status-badge status-badge--on">Running</span>
+        </li>
+        <li class="status-row">
+          <span class="status-row__label"><span class="status-dot status-dot--on"></span> Queue Detection</span>
+          <span class="status-badge status-badge--on">Active</span>
+        </li>
+        <li class="status-row">
+          <span class="status-row__label"><span class="status-dot status-dot--on"></span> JSON Feed</span>
+          <span class="status-badge status-badge--on">Connected</span>
+        </li>
+      </ul>
+
+      <div class="metric-grid">
+        <div class="metric-tile">
+          <p class="metric-tile__label">Inference Time</p>
+          <p class="metric-tile__value">18<span>ms</span></p>
+        </div>
+        <div class="metric-tile">
+          <p class="metric-tile__label">FPS</p>
+          <p class="metric-tile__value" id="fps">{{ fps }}<span>fps</span></p>
+        </div>
+        <div class="metric-tile">
+          <p class="metric-tile__label">Accuracy</p>
+          <p class="metric-tile__value">97<span>%</span></p>
+        </div>
+        <div class="metric-tile">
+          <p class="metric-tile__label">Throughput</p>
+          <p class="metric-tile__value" id="throughput">{{ throughput }}<span>/min</span></p>
+        </div>
+      </div>
+    </article>
+
+  </section>
+
+  <!-- ============ CHARTS ============ -->
+  <section class="chart-grid reveal">
+    <article class="panel chart-panel">
+      <div class="panel__header">
+        <h2 class="panel__title"><i class="bi bi-graph-up-arrow"></i> Queue Trend</h2>
+      </div>
+      <div class="chart-panel__canvas-wrap">
+        <canvas id="queueTrendChart"></canvas>
+      </div>
+    </article>
+
+    <article class="panel chart-panel">
+      <div class="panel__header">
+        <h2 class="panel__title"><i class="bi bi-bar-chart-fill"></i> Wait Time Trend</h2>
+      </div>
+      <div class="chart-panel__canvas-wrap">
+        <canvas id="waitTimeChart"></canvas>
+      </div>
+    </article>
+  </section>
+
+  <!-- ============ AI RECOMMENDATION ============ -->
+  <section class="reveal">
+    <article class="panel recommendation-panel">
+      <div class="recommendation-panel__icon"><i class="bi bi-stars"></i></div>
+      <div class="recommendation-panel__body">
+        <h2 class="panel__title">🤖 AI Recommendation</h2>
+        <p id="recommendation" class="recommendation-panel__text">{{ recommendation }}</p>
+        <div class="recommendation-panel__stats">
+          <span class="stat-badge stat-badge--success">
+            <i class="bi bi-graph-down-arrow"></i> Wait Reduction&nbsp;<strong>32%</strong>
+          </span>
+          <span class="stat-badge stat-badge--info">
+            <i class="bi bi-shield-check"></i> Confidence&nbsp;<strong>97%</strong>
+          </span>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- ============ QUEUE STATISTICS TABLE ============ -->
+  <section class="reveal">
+    <article class="panel table-panel">
+      <div class="panel__header">
+        <h2 class="panel__title"><i class="bi bi-table"></i> Queue Statistics</h2>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-dark table-borderless premium-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Queue</th>
+              <th>Wait</th>
+              <th>Risk</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>09:00</td>
+              <td>6</td>
+              <td>5 min</td>
+              <td><span class="risk-cell" data-risk="Low">Low</span></td>
+              <td><span class="table-status table-status--ok">Normal</span></td>
+            </tr>
+            <tr>
+              <td>09:15</td>
+              <td>11</td>
+              <td>9 min</td>
+              <td><span class="risk-cell" data-risk="Medium">Medium</span></td>
+              <td><span class="table-status table-status--ok">Normal</span></td>
+            </tr>
+            <tr class="table-row--live">
+              <td>Now</td>
+              <td>{{ queue_count }}</td>
+              <td>{{ wait_time }}</td>
+              <td><span class="risk-cell" data-risk="{{ risk }}">{{ risk }}</span></td>
+              <td><span class="table-status table-status--live"><i class="bi bi-broadcast"></i> Live</span></td>
+            </tr>
+            <tr>
+              <td>09:45</td>
+              <td>15</td>
+              <td>14 min</td>
+              <td><span class="risk-cell" data-risk="High">High</span></td>
+              <td><span class="table-status table-status--warn">Monitor</span></td>
+            </tr>
+            <tr>
+              <td>10:00</td>
+              <td>9</td>
+              <td>7 min</td>
+              <td><span class="risk-cell" data-risk="Low">Low</span></td>
+              <td><span class="table-status table-status--ok">Normal</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="dash-footer reveal">
+    <p class="dash-footer__title">Powered By</p>
+    <div class="dash-footer__stack">
+      <span class="stack-chip">YOLOv8</span>
+      <span class="stack-chip">ByteTrack</span>
+      <span class="stack-chip">OpenCV</span>
+      <span class="stack-chip">Flask</span>
+      <span class="stack-chip">Chart.js</span>
+      <span class="stack-chip">Bootstrap</span>
+    </div>
+  </footer>
+
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<!-- App JS -->
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

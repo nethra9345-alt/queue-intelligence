@@ -1,22 +1,16 @@
 from flask import Flask, jsonify, render_template
+import json
 
 app = Flask(__name__)
 
-# Temporary data (later we'll replace this with live values)
-queue_data = {
-    "queue_count": 0,
-    "people_served": 0,
-    "avg_wait": 0,
-    "status": "Normal"
-}
-
 @app.route("/")
-def dashboard():
+def home():
     return render_template("dashboard.html")
 
 @app.route("/data")
 def data():
-    return jsonify(queue_data)
+    with open("output/queue_data.json","r") as f:
+        return jsonify(json.load(f))
 
-if __name__ == "__main__":
+if __name__=="__main__":
     app.run(debug=True)

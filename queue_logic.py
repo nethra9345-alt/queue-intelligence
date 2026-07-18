@@ -21,12 +21,14 @@ class QueueMonitor:
         self.people_served = 0
         self.total_wait = 0
 
+        # Grace period for exit detection
+        self.exit_times = {}
+        self.exit_delay = 10  # seconds
+
     def process(self, frame, results):
 
         queue_count = 0
-
         annotated = frame.copy()
-
         current_frame_ids = set()
 
         # -----------------------------
@@ -66,7 +68,7 @@ class QueueMonitor:
 
                 xmin, ymin, xmax, ymax = map(int, box)
 
-                # Center of person
+                # Use center point
                 cx = (xmin + xmax) // 2
                 cy = (ymin + ymax) // 2
 
@@ -81,6 +83,10 @@ class QueueMonitor:
                     track_id = int(track_id)
 
                     current_frame_ids.add(track_id)
+
+                    # Cancel exit timer if person reappears
+                    if track_id in self.exit_times:
+                        del self.exit_times[track_id]
 
                     # First time entering queue
                     if track_id not in self.entry_times:
@@ -122,21 +128,34 @@ class QueueMonitor:
                     )
 
         # -----------------------------
-        # Detect Exits
+        # Detect Exits (Grace Period)
         # -----------------------------
+        current_time = time.time()
+
         left_people = self.current_ids - current_frame_ids
 
+        # Start exit timer
         for pid in left_people:
 
-            if pid in self.entry_times:
+            if pid not in self.exit_times:
+                self.exit_times[pid] = current_time
 
-                wait = time.time() - self.entry_times[pid]
+        # Remove after delay
+        for pid in list(self.exit_times.keys()):
 
-                self.total_wait += wait
+            if current_time - self.exit_times[pid] >= self.exit_delay:
 
-                self.people_served += 1
+                if pid in self.entry_times:
 
-                del self.entry_times[pid]
+                    wait = current_time - self.entry_times[pid]
+
+                    self.total_wait += wait
+
+                    self.people_served += 1
+
+                    del self.entry_times[pid]
+
+                del self.exit_times[pid]
 
         self.current_ids = current_frame_ids
 
@@ -174,13 +193,9 @@ class QueueMonitor:
         queue_data = {
 
             "queue_count": queue_count,
-
             "people_served": self.people_served,
-
             "average_wait": round(avg_wait, 1),
-
             "status": status,
-
             "recommendation": recommendation
 
         }
@@ -242,4 +257,4 @@ class QueueMonitor:
             2
         )
 
-        return annotated, queue_count
+        return annotated, queue_data

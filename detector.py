@@ -3,7 +3,7 @@ from ultralytics import YOLO
 from queue_logic import QueueMonitor
 
 # Load YOLO model
-model = YOLO("models/yolov8n.pt")
+model = YOLO("models/best.pt")
 
 # Initialize Queue Monitor
 queue_monitor = QueueMonitor()
@@ -29,16 +29,16 @@ while True:
         tracker="bytetrack.yaml",
         classes=[0],
         imgsz=1280,
-        conf=0.10,
-        iou=0.5,
+        conf=0.25,
+        iou=0.6,
         verbose=False
     )
 
     # Process Queue Logic
-    output_frame, queue_count = queue_monitor.process(
-        frame,
-        results
-    )
+    output_frame, data = queue_monitor.process(
+    frame,
+    results
+)
 
     cv2.imshow("Queue Intelligence", output_frame)
 
